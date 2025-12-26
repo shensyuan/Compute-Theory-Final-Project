@@ -41,17 +41,14 @@ class ScheduleTools():
         self,
         items: list[dict] = Field(
             ...,
-            description="待存入的項目清單。固定事件需 start/end，彈性任務需 duration_min。"
+            description="""包含標題、類別與時間資訊的字典清單。
+- 固定事件範例: {"title": "會議", "start": "2025-01-01 09:00", "end": "2025-01-01 10:00", "category": "工作"}
+- 彈性任務範例: {"title": "慢跑", "duration_min": 30, "priority": 1, "category": "健康"}"""
         ),
     ) -> str:
         """將使用者提供的原始任務或固定行程存入底層資料庫。
 
         存入後，LLM 應讀取目前資料庫狀態，並根據這些資訊進行時間排程規劃。
-
-        Args:
-            items: 包含標題、類別與時間資訊的字典清單。
-                  - 固定事件範例: {"title": "會議", "start": "2025-01-01 09:00", "end": "2025-01-01 10:00", "category": "工作"}
-                  - 彈性任務範例: {"title": "慢跑", "duration_min": 30, "priority": 1, "category": "健康"}
 
         Returns:
             儲存成功訊息與後續操作指引。
