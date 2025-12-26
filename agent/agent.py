@@ -43,27 +43,28 @@ async def test(context: str) -> str:
     )
     messages.append(response.message)
 
-    if response.message.tool_calls:
-        for call in response.message.tool_calls:
-            print(f"Call: {call.function.name}")
-            target_func = func_map.get(call.function.name)
+    while True:
+        if response.message.tool_calls:
+            for call in response.message.tool_calls:
+                print(f"Call: {call.function.name}")
+                target_func = func_map.get(call.function.name)
 
-            if target_func:
-                result = target_func(**call.function.arguments)
-            else:
-                result = "Unknown tool"
+                if target_func:
+                    result = target_func(**call.function.arguments)
+                else:
+                    result = "Unknown tool"
 
-            messages.append(Message(
-                role="tool",
-                tool_name=call.function.name,
-                content=str(result)
-            ))
+                messages.append(Message(
+                    role="tool",
+                    tool_name=call.function.name,
+                    content=str(result)
+                ))
 
-        response = await client.chat(
-            model=OLLAMA_MODEL,
-            messages=messages,
-            tools=tool_list
-        )
-        print("Function called.")
-
-    return response.message.content or ""
+            response = await client.chat(
+                model=OLLAMA_MODEL,
+                messages=messages,
+                tools=tool_list
+            )
+            print("Function called.")
+        else:
+            return response.message.content or ""
