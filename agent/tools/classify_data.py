@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import List, Dict
+from typing import Annotated
 from pydantic import Field
 
 # 假設 base.py 在同一個包結構中
@@ -11,6 +11,7 @@ from .base import class_tool_decorator_generator
 decorator, builder = class_tool_decorator_generator("ScheduleTools")
 
 DB_FILE = "task_database.json"
+
 
 class ScheduleTools():
     def __init__(self):
@@ -38,13 +39,13 @@ class ScheduleTools():
     @decorator
     def ingest_data(
         self,
-        items: List[dict] = Field(
+        items: list[dict] = Field(
             ...,
             description="待存入的項目清單。固定事件需 start/end，彈性任務需 duration_min。"
         ),
     ) -> str:
         """將使用者提供的原始任務或固定行程存入底層資料庫。
-        
+
         存入後，LLM 應讀取目前資料庫狀態，並根據這些資訊進行時間排程規劃。
 
         Args:
@@ -79,7 +80,7 @@ class ScheduleTools():
                 return f"❌ 解析項目 '{item.get('title')}' 時發生錯誤: {str(e)}"
 
         self._write_db(db)
-        
+
         # 這裡模仿 DinnerTools 回傳結構化資訊給 LLM
         return (
             f"✅ 已成功將 {count} 個項目存入資料庫。\n\n"
@@ -88,6 +89,7 @@ class ScheduleTools():
             "2. 判斷是否有時間衝突，並為彈性任務分配最適合的時間段。\n"
             "3. 完成排程後，請呼叫 `save_llm_plan` 工具正式儲存你的排程結果。"
         )
+
 
 # 註冊工具
 builder(ScheduleTools())

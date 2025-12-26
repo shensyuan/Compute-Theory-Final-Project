@@ -31,6 +31,8 @@ async def on_message(message: Message):
         await message.reply("不知道")
     elif "微算機" in message.content:
         await message.reply("你要去讀規格書阿")
+    elif "睡覺" in message.content:
+        await message.reply("起床重睡")
     else:
         reply_message = await message.reply(f"{bot.user.display_name} is thinking...")
 

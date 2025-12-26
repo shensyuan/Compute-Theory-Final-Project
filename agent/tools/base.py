@@ -1,3 +1,4 @@
+from inspect import getdoc, signature
 from typing import Any, Callable, TypeVar
 from ollama import Tool, _utils
 
@@ -6,6 +7,15 @@ func_map: dict[str, Callable] = {}
 __class_func_data: dict[str, list[Callable]] = {}
 
 T = TypeVar("T")
+
+
+# def _convert_function_to_tool(func: Callable) -> Tool:
+#     tool = _utils.convert_function_to_tool(func=func)
+
+#     if tool.function.parameters is None:
+#         return tool
+    
+#     tool.function.parameters.properties
 
 
 def tool_func(func: T) -> T:
