@@ -2,12 +2,12 @@ from pydantic import Field
 
 from .base import class_tool_decorator_generator
 
-decorator, builder = class_tool_decorator_generator("DinnerTools")
+decorator, builder = class_tool_decorator_generator("EatDinnerTools")
 
 
-class DinnerTools():
+class EatDinnerTools():
     def __init__(self):
-        # 這是你的資料庫 [cite: 56]
+        # 這是食物資料庫
         self.food_database = {
             "台式": ["滷肉飯", "牛肉麵", "丹丹漢堡", "鹹酥雞"],
             "日式": ["拉麵", "壽司", "丼飯", "烏龍麵"],
@@ -44,4 +44,4 @@ class DinnerTools():
         )
 
 
-builder(DinnerTools())
+builder(EatDinnerTools())

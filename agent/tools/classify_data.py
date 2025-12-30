@@ -8,12 +8,12 @@ from pydantic import Field
 from .base import class_tool_decorator_generator
 
 # 初始化裝飾器與建構器
-decorator, builder = class_tool_decorator_generator("ScheduleTools")
+decorator, builder = class_tool_decorator_generator("TaskClassifyTools")
 
 DB_FILE = "task_database.json"
 
 
-class ScheduleTools():
+class TaskClassifyTools():
     def __init__(self):
         if not os.path.exists(DB_FILE):
             self._write_db({"fixed": [], "floating": [], "scheduled": []})
@@ -89,4 +89,4 @@ class ScheduleTools():
 
 
 # 註冊工具
-builder(ScheduleTools())
+builder(TaskClassifyTools())

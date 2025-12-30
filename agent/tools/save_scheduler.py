@@ -8,11 +8,11 @@ from pydantic import Field
 from .base import class_tool_decorator_generator
 
 # 初始化裝飾器與建構器
-decorator, builder = class_tool_decorator_generator("TaskTools")
+decorator, builder = class_tool_decorator_generator("SaveSchedulerTools")
 
 DB_FILE = "task_database.json"
 
-class TaskTools():
+class SaveSchedulerTools():
     def __init__(self):
         if not os.path.exists(DB_FILE):
             self._write_db({"fixed": [], "floating": [], "scheduled": []})
@@ -98,4 +98,4 @@ class TaskTools():
         return "\n".join(output)
 
 # 執行 builder 將實例化後的工具註冊
-builder(TaskTools())
+builder(SaveSchedulerTools())

@@ -8,9 +8,3 @@ if __name__ == "__main__":
     print(tool_list)
     
     start_bot()
-
-    # from agent.agent import test
-    # from asyncio import run
-    # async def main():
-    #     await test()
-    # run(test())
