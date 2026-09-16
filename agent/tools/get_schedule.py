@@ -1,80 +1,63 @@
-import json
-import os
-from datetime import datetime
-from typing import List, Dict
 from pydantic import Field
 
-# 假設 base.py 位於相同路徑
 from .base import class_tool_decorator_generator
+from .database import read_db
 
-# 初始化裝飾器與建構器
 decorator, builder = class_tool_decorator_generator("ScheduleQueryTools")
 
-DB_FILE = "task_database.json"
 
-class ScheduleQueryTools():
-    def __init__(self):
-        if not os.path.exists(DB_FILE):
-            self._write_db({"fixed": [], "floating": [], "scheduled": []})
+def _all_events(db: dict) -> list[dict]:
+    """合併固定行程（type=FIXED）與 LLM 排定的行程（type=TASK），依開始時間排序。"""
+    fixed = [{**item, "type": "FIXED"} for item in db.get("fixed", [])]
+    scheduled = [{**item, "type": item.get("type", "TASK")} for item in db.get("scheduled", [])]
+    return sorted(fixed + scheduled, key=lambda x: x["start"])
 
-    def _read_db(self) -> dict:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            # 確保時間格式正確轉換
-            for key in ["fixed", "scheduled"]:
-                for item in data.get(key, []):
-                    if isinstance(item.get("start"), str):
-                        item["start"] = datetime.fromisoformat(item["start"])
-                    if isinstance(item.get("end"), str):
-                        item["end"] = datetime.fromisoformat(item["end"])
-            return data
 
-    def _write_db(self, data: dict):
-        # 存檔前轉回字串格式
-        to_save = json.loads(json.dumps(data, default=str))
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(to_save, f, ensure_ascii=False, indent=4)
-
+class ScheduleQueryTools:
     @decorator
     def get_full_schedule(self) -> str:
-        """從資料庫中提取目前所有已排定的行程（包含固定事件與彈性任務）。
-        
+        """列出目前所有行程，包含使用者的固定事件與 LLM 已排定的任務。
+
         當使用者詢問「我接下來要做什麼？」或「看看我的排程」時，請呼叫此工具。
 
         Returns:
-            以日期分類、具備圖標區分的視覺化行程清單。
+            以日期分類、具備圖標區分（🔴 固定事件 / 🔵 排定任務）的行程清單。
         """
-        db = self._read_db()
-        if not db["scheduled"]:
-            return "📭 目前檔案中沒有排程資料。建議你可以先儲存一些新的計畫。"
+        db = read_db()
+        events = _all_events(db)
+        if not events:
+            floating = db.get("floating", [])
+            if floating:
+                titles = "、".join(t["title"] for t in floating)
+                return f"📭 目前沒有已排定的行程，但有 {len(floating)} 個彈性任務尚未排程：{titles}。"
+            return "📭 目前資料庫中沒有任何行程。建議你可以先儲存一些新的計畫。"
 
         output = ["## 💾 完整整合行程表"]
-        curr_date = None
-        for item in db["scheduled"]:
+        current_date = None
+        for item in events:
             date = item["start"].date()
-            if date != curr_date:
-                curr_date = date
+            if date != current_date:
+                current_date = date
                 output.append(f"\n### 📅 {date.strftime('%m/%d (%a)')}")
 
-            # 區分固定事件(Red)與已排定任務(Blue)
-            icon = "🔴" if item.get("type") == "FIXED" else "🔵"
-            cat = item.get("category", "一般")
+            icon = "🔴" if item["type"] == "FIXED" else "🔵"
+            category = item.get("category", "一般")
             output.append(
-                f"- {icon} {item['start'].strftime('%H:%M')}-{item['end'].strftime('%H:%M')} | 【{cat}】{item['title']}"
+                f"- {icon} {item['start'].strftime('%H:%M')}-{item['end'].strftime('%H:%M')} | 【{category}】{item['title']}"
             )
 
         return (
-            "\n".join(output) + 
-            "\n\n請根據以上排程，為使用者提供摘要或提醒接下來最重要的事項。"
+            "\n".join(output)
+            + "\n\n請根據以上排程，為使用者提供摘要或提醒接下來最重要的事項。"
         )
 
     @decorator
     def get_schedule_by_category(
-        self, 
-        target_category: str = Field(..., description="要查詢的特定分類名稱，例如：讀書、工作、運動")
+        self,
+        target_category: str = Field(..., description="要查詢的特定分類名稱，例如：讀書、工作、運動"),
     ) -> str:
-        """只過濾並顯示特定分類的行程。
-        
+        """只過濾並顯示特定分類的行程（固定事件與排定任務皆包含）。
+
         當使用者想針對特定領域（如工作進度）進行回顧時，使用此工具。
 
         Args:
@@ -83,12 +66,11 @@ class ScheduleQueryTools():
         Returns:
             該分類下的所有相關行程摘要。
         """
-        db = self._read_db()
-        # 模糊搜尋分類名稱
+        db = read_db()
+        keyword = target_category.lower()
         filtered = [
-            i
-            for i in db.get("scheduled", [])
-            if target_category.lower() in i.get("category", "").lower()
+            item for item in _all_events(db)
+            if keyword in item.get("category", "").lower()
         ]
 
         if not filtered:
@@ -96,14 +78,13 @@ class ScheduleQueryTools():
 
         output = [f"## 📂 分類查詢結果：{target_category}"]
         for item in filtered:
-            output.append(
-                f"- {item['start'].strftime('%m/%d %H:%M')} | {item['title']}"
-            )
+            icon = "🔴" if item["type"] == "FIXED" else "🔵"
+            output.append(f"- {icon} {item['start'].strftime('%m/%d %H:%M')} | {item['title']}")
 
         return (
-            "\n".join(output) + 
-            f"\n\n以上是關於「{target_category}」的查詢結果，請以此回覆使用者。"
+            "\n".join(output)
+            + f"\n\n以上是關於「{target_category}」的查詢結果，請以此回覆使用者。"
         )
 
-# 執行註冊
+
 builder(ScheduleQueryTools())

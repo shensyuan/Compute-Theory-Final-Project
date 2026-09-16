@@ -1,41 +1,16 @@
-import json
-import os
 from datetime import datetime
-from typing import Annotated
+
 from pydantic import Field
 
-# 假設 base.py 在同一個包結構中
 from .base import class_tool_decorator_generator
+from .database import read_db, write_db
 
-# 初始化裝飾器與建構器
 decorator, builder = class_tool_decorator_generator("TaskClassifyTools")
 
-DB_FILE = "task_database.json"
+TIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
-class TaskClassifyTools():
-    def __init__(self):
-        if not os.path.exists(DB_FILE):
-            self._write_db({"fixed": [], "floating": [], "scheduled": []})
-
-    def _read_db(self) -> dict:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            # 轉換字串回 datetime 物件供程式處理
-            for key in ["fixed", "scheduled"]:
-                for item in data.get(key, []):
-                    if isinstance(item.get("start"), str):
-                        item["start"] = datetime.fromisoformat(item["start"])
-                    if isinstance(item.get("end"), str):
-                        item["end"] = datetime.fromisoformat(item["end"])
-            return data
-
-    def _write_db(self, data: dict):
-        # 存入時將 datetime 轉回字串
-        to_save = json.loads(json.dumps(data, default=str))
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(to_save, f, ensure_ascii=False, indent=4)
-
+class TaskClassifyTools:
     @decorator
     def ingest_data(
         self,
@@ -43,42 +18,42 @@ class TaskClassifyTools():
             ...,
             description="""包含標題、類別與時間資訊的字典清單。
 - 固定事件範例: {"title": "會議", "start": "2025-01-01 09:00", "end": "2025-01-01 10:00", "category": "工作"}
-- 彈性任務範例: {"title": "慢跑", "duration_min": 30, "priority": 1, "category": "健康"}"""
+- 彈性任務範例: {"title": "慢跑", "duration_min": 30, "priority": 1, "category": "健康"}""",
         ),
     ) -> str:
-        """將使用者提供的原始任務或固定行程存入底層資料庫。
+        """將使用者提供的固定行程或彈性任務存入資料庫。
 
-        存入後，LLM 應讀取目前資料庫狀態，並根據這些資訊進行時間排程規劃。
+        有 start / end 的項目視為固定事件，其餘視為需要被排程的彈性任務。
+        存入後，你應讀取目前資料庫狀態，為彈性任務規劃時間並呼叫 save_llm_plan 儲存。
 
         Returns:
             儲存成功訊息與後續操作指引。
         """
-        db = self._read_db()
+        db = read_db()
         count = 0
         for item in items:
-            cat = item.get("category", "未分類")
+            category = item.get("category", "未分類")
             try:
                 if "start" in item and "end" in item:
                     db["fixed"].append({
                         "title": item["title"],
-                        "start": datetime.strptime(item["start"], "%Y-%m-%d %H:%M"),
-                        "end": datetime.strptime(item["end"], "%Y-%m-%d %H:%M"),
-                        "category": cat,
+                        "start": datetime.strptime(item["start"], TIME_FORMAT),
+                        "end": datetime.strptime(item["end"], TIME_FORMAT),
+                        "category": category,
                     })
                 else:
                     db["floating"].append({
                         "title": item["title"],
                         "duration": item.get("duration_min", 60),
                         "priority": item.get("priority", 3),
-                        "category": cat,
+                        "category": category,
                     })
                 count += 1
-            except Exception as e:
-                return f"❌ 解析項目 '{item.get('title')}' 時發生錯誤: {str(e)}"
+            except (KeyError, ValueError) as e:
+                return f"❌ 解析項目 '{item.get('title')}' 時發生錯誤: {e}"
 
-        self._write_db(db)
+        write_db(db)
 
-        # 這裡模仿 DinnerTools 回傳結構化資訊給 LLM
         return (
             f"✅ 已成功將 {count} 個項目存入資料庫。\n\n"
             "現在請你執行以下步驟：\n"
@@ -88,5 +63,4 @@ class TaskClassifyTools():
         )
 
 
-# 註冊工具
 builder(TaskClassifyTools())
