@@ -18,54 +18,6 @@
 
 若使用者要排彈性任務但沒給「預計總時數」或「預計完成日期」，Agent 會先反問而不是自行假設。
 
-## 系統邏輯圖（State Machine）
-
-```mermaid
-stateDiagram-v2
-    [*] --> Idle
-    Idle --> ParseMessage : 收到 @mention 訊息
-    ParseMessage --> Idle : 來自 bot 自己 / 沒有內容
-    ParseMessage --> QuickCommand : 內容為 help / ping / reset
-    QuickCommand --> Idle : 直接回覆
-    ParseMessage --> Thinking : 其他內容
-
-    state "Thinking（送出「🤔 正在思考中」）" as Thinking
-    Thinking --> CallLLM : 組合 system prompt + 頻道歷史
-    CallLLM --> ExecuteTools : 回應含 tool_calls
-    CallLLM --> Reply : 回應為純文字
-    CallLLM --> Error : API 例外
-    ExecuteTools --> CallLLM : 將工具結果以 role=tool 回傳（最多 10 回合）
-
-    state ExecuteTools {
-        [*] --> Lookup
-        Lookup --> Run : 工具存在
-        Lookup --> ToolError : 未知工具
-        Run --> ToolResult : 成功
-        Run --> ToolError : 參數錯誤 / 例外
-        ToolResult --> [*]
-        ToolError --> [*] : 錯誤訊息回給 LLM 自行修正
-    }
-
-    Reply --> Idle : 更新訊息（>2000 字自動分段），寫入頻道歷史
-    Error --> Idle : 顯示錯誤訊息，回滾該則使用者訊息
-```
-
-### 工具層的資料流（DAG）
-
-```mermaid
-flowchart LR
-    U[使用者自然語言] --> L[LLM]
-    L -->|ingest_data| DB[(task_database.json<br/>fixed / floating / scheduled)]
-    DB -->|讀取現況| L
-    L -->|save_llm_plan<br/>取代 scheduled| DB
-    DB -->|get_full_schedule<br/>get_schedule_by_category| L
-    L -->|update_item_properties| DB
-    L -->|reset_all_data| DB
-    L -->|get_dinner_recommendation| F[美食資料庫]
-    F --> L
-    L --> R[繁體中文回覆]
-```
-
 ## 專案架構
 
 ```
